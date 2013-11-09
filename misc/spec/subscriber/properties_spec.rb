@@ -640,6 +640,7 @@ describe "Subscriber Properties" do
           sub_1.response_header['ACCESS_CONTROL_ALLOW_ORIGIN'].should be_nil
           sub_1.response_header['ACCESS_CONTROL_ALLOW_METHODS'].should be_nil
           sub_1.response_header['ACCESS_CONTROL_ALLOW_HEADERS'].should be_nil
+          sub_1.response_header['ACCESS_CONTROL_EXPOSE_HEADERS'].should be_nil
 
           EventMachine.stop
         end
@@ -658,6 +659,7 @@ describe "Subscriber Properties" do
             sub_1.response_header['ACCESS_CONTROL_ALLOW_ORIGIN'].should eql("custom.domain.com")
             sub_1.response_header['ACCESS_CONTROL_ALLOW_METHODS'].should eql("GET")
             sub_1.response_header['ACCESS_CONTROL_ALLOW_HEADERS'].should eql("If-Modified-Since,If-None-Match,Etag,Event-Id,Event-Type,Last-Event-Id")
+            sub_1.response_header['ACCESS_CONTROL_EXPOSE_HEADERS'].should eql("If-Modified-Since,If-None-Match,Etag,Event-Id,Event-Type,Last-Event-Id")
 
             EventMachine.stop
           end
@@ -675,6 +677,7 @@ describe "Subscriber Properties" do
             sub_1.response_header['ACCESS_CONTROL_ALLOW_ORIGIN'].should eql("test.com")
             sub_1.response_header['ACCESS_CONTROL_ALLOW_METHODS'].should eql("GET")
             sub_1.response_header['ACCESS_CONTROL_ALLOW_HEADERS'].should eql("If-Modified-Since,If-None-Match,Etag,Event-Id,Event-Type,Last-Event-Id")
+            sub_1.response_header['ACCESS_CONTROL_EXPOSE_HEADERS'].should eql("If-Modified-Since,If-None-Match,Etag,Event-Id,Event-Type,Last-Event-Id")
 
             EventMachine.stop
           end

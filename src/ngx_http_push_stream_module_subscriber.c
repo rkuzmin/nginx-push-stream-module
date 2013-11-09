@@ -65,6 +65,7 @@ ngx_http_push_stream_subscriber_handler(ngx_http_request_t *r)
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN, &vv_allowed_origins);
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ACCESS_CONTROL_ALLOW_METHODS, &NGX_HTTP_PUSH_STREAM_ALLOW_GET);
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ACCESS_CONTROL_ALLOW_HEADERS, &NGX_HTTP_PUSH_STREAM_ALLOWED_HEADERS);
+        ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ACCESS_CONTROL_EXPOSE_HEADERS, &NGX_HTTP_PUSH_STREAM_ALLOWED_HEADERS);
     }
 
     if (r->method & NGX_HTTP_OPTIONS) {
