@@ -271,8 +271,6 @@ ngx_http_push_stream_publisher_body_handler(ngx_http_request_t *r)
     } else {
         ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_OK, NULL);
     }
-    ngx_http_finalize_request(r, NGX_OK);
-    return;
 }
 
 static ngx_int_t

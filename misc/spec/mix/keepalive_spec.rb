@@ -7,7 +7,8 @@ describe "Keepalive" do
       :keepalive_requests => 500,
       :header_template => '',
       :message_template => '~text~',
-      :footer_template => ''
+      :footer_template => '',
+      :publisher_mode => 'admin'
     }
   end
 
@@ -47,8 +48,29 @@ describe "Keepalive" do
       body.should match_the_pattern(/"channels": "1", "wildcard_channels": "0", "published_messages": "1", "stored_messages": "1", "messages_in_trash": "0", "channels_in_trash": "0", "subscribers": "0", "uptime": "[0-9]*", "by_worker": \[\r\n/)
       body.should match_the_pattern(/\{"pid": "[0-9]*", "subscribers": "0", "uptime": "[0-9]*"\}/)
 
+      socket.print("DELETE /pub?id=#{channel}_1 HTTP/1.1\r\nHost: test\r\n\r\n")
+      headers, body = read_response_on_socket(socket)
+      headers.should include("HTTP/1.1 404 Not Found")
+
+      headers, body = get_in_socket("/channels-stats?id=ALL", socket)
+
+      body.should match_the_pattern(/"hostname": "[^"]*", "time": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", "channels": "1", "wildcard_channels": "0", "uptime": "[0-9]*", "infos": \[\r\n/)
+      body.should match_the_pattern(/"channel": "#{channel}", "published_messages": "1", "stored_messages": "1", "subscribers": "0"}\r\n/)
+
       headers, body = get_in_socket("/pub?id=#{channel}", socket)
       body.should eql("{\"channel\": \"#{channel}\", \"published_messages\": \"1\", \"stored_messages\": \"1\", \"subscribers\": \"0\"}\r\n")
+
+      headers, body = post_in_socket("/pub?id=#{channel}/broad_#{channel}", content, socket, {:wait_for => "}\r\n"})
+      body.should match_the_pattern(/"hostname": "[^"]*", "time": "\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", "channels": "1", "wildcard_channels": "1", "uptime": "[0-9]*", "infos": \[\r\n/)
+      body.should match_the_pattern(/"channel": "#{channel}", "published_messages": "2", "stored_messages": "2", "subscribers": "0"},\r\n/)
+      body.should match_the_pattern(/"channel": "broad_#{channel}", "published_messages": "1", "stored_messages": "1", "subscribers": "0"}\r\n/)
+
+      headers, body = get_in_socket("/channels-stats?id=#{channel}", socket)
+      body.should match_the_pattern(/{"channel": "#{channel}", "published_messages": "2", "stored_messages": "2", "subscribers": "0"}\r\n/)
+
+      socket.print("DELETE /pub?id=#{channel} HTTP/1.1\r\nHost: test\r\n\r\n")
+      headers, body = read_response_on_socket(socket)
+      headers.should include("X-Nginx-PushStream-Explain: Channel deleted.")
 
       socket.close
     end

@@ -416,6 +416,10 @@ ngx_http_push_stream_send_only_header_response(ngx_http_request_t *r, ngx_int_t 
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
+    if (r->main->count > 1) {
+        ngx_http_finalize_request(r, NGX_OK);
+    }
+
     return rc;
 }
 
@@ -603,7 +607,13 @@ ngx_http_push_stream_send_response(ngx_http_request_t *r, ngx_str_t *text, const
         return rc;
     }
 
-    return ngx_http_push_stream_send_response_text(r, text->data, text->len, 1);
+    rc = ngx_http_push_stream_send_response_text(r, text->data, text->len, 1);
+
+    if (r->main->count > 1) {
+        ngx_http_finalize_request(r, NGX_OK);
+    }
+
+    return rc;
 }
 
 static ngx_int_t

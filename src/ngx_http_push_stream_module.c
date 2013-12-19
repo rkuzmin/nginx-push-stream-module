@@ -194,7 +194,13 @@ ngx_http_push_stream_send_response_channels_info(ngx_http_request_t *r, ngx_queu
         ngx_http_push_stream_output_filter(r, first);
     }
     // send content footer
-    return ngx_http_push_stream_send_response_text(r, tail->data, tail->len, 1);
+    rc = ngx_http_push_stream_send_response_text(r, tail->data, tail->len, 1);
+
+    if (r->main->count > 1) {
+        ngx_http_finalize_request(r, NGX_OK);
+    }
+
+    return rc;
 }
 
 static ngx_int_t
