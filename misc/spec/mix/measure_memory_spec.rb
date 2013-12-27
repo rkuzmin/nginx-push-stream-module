@@ -23,7 +23,7 @@ describe "Measure Memory" do
     channel = 'ch_test_message_size'
     body = '1'
 
-    nginx_run_server(config) do |conf|
+    nginx_run_server(config, :timeout => 30) do |conf|
       shared_size = conf.shared_memory_size.to_i * 1024 * 1024
 
       post_channel_message = "POST /pub?id=#{channel} HTTP/1.1\r\nHost: localhost\r\nContent-Length: #{body.size}\r\n\r\n#{body}"
