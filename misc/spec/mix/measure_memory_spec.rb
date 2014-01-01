@@ -53,7 +53,7 @@ describe "Measure Memory" do
   it "should check channel size" do
     body = '1'
 
-    nginx_run_server(config, :timeout => 1500) do |conf|
+    nginx_run_server(config, :timeout => 150) do |conf|
       shared_size = conf.shared_memory_size.to_i * 1024 * 1024
 
       socket = open_socket(nginx_host, nginx_port)

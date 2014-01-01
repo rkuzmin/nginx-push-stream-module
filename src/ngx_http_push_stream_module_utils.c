@@ -187,10 +187,6 @@ ngx_http_push_stream_cleanup_shutting_down_worker_data(ngx_http_push_stream_shm_
         } else {
             ngx_http_push_stream_send_response_finalize(subscriber->request);
         }
-
-        if (ngx_exiting) {
-            ngx_close_connection(subscriber->request->connection);
-        }
     }
 
     if (ngx_http_push_stream_memory_cleanup_event.timer_set) {
@@ -398,31 +394,6 @@ ngx_http_push_stream_add_msg_to_channel(ngx_http_request_t *r, ngx_str_t *id, u_
 }
 
 
-static ngx_int_t
-ngx_http_push_stream_send_only_header_response(ngx_http_request_t *r, ngx_int_t status_code, const ngx_str_t *explain_error_message)
-{
-    ngx_int_t rc;
-
-    r->header_only = 1;
-    r->headers_out.content_length_n = 0;
-    r->headers_out.status = status_code;
-    if (explain_error_message != NULL) {
-        ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_EXPLAIN, explain_error_message);
-    }
-
-    rc = ngx_http_send_header(r);
-
-    if (rc > NGX_HTTP_SPECIAL_RESPONSE) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (r->main->count > 1) {
-        ngx_http_finalize_request(r, NGX_OK);
-    }
-
-    return rc;
-}
-
 static ngx_table_elt_t *
 ngx_http_push_stream_add_response_header(ngx_http_request_t *r, const ngx_str_t *header_name, const ngx_str_t *header_value)
 {
@@ -440,6 +411,7 @@ ngx_http_push_stream_add_response_header(ngx_http_request_t *r, const ngx_str_t 
 
     return h;
 }
+
 
 static ngx_str_t *
 ngx_http_push_stream_get_header(ngx_http_request_t *r, const ngx_str_t *header_name)
@@ -476,6 +448,7 @@ ngx_http_push_stream_get_header(ngx_http_request_t *r, const ngx_str_t *header_n
     return aux;
 }
 
+
 static ngx_int_t
 ngx_http_push_stream_send_response_content_header(ngx_http_request_t *r, ngx_http_push_stream_loc_conf_t *pslcf)
 {
@@ -490,6 +463,7 @@ ngx_http_push_stream_send_response_content_header(ngx_http_request_t *r, ngx_htt
 
     return rc;
 }
+
 
 static ngx_int_t
 ngx_http_push_stream_send_response_message(ngx_http_request_t *r, ngx_http_push_stream_channel_t *channel, ngx_http_push_stream_msg_t *msg, ngx_flag_t send_callback, ngx_flag_t send_separator)
@@ -586,35 +560,57 @@ ngx_http_push_stream_output_filter(ngx_http_request_t *r, ngx_chain_t *in)
 }
 
 
-static ngx_int_t
-ngx_http_push_stream_send_response(ngx_http_request_t *r, ngx_str_t *text, const ngx_str_t *content_type, ngx_int_t status_code)
+ngx_int_t
+ngx_http_push_stream_send_response(ngx_http_request_t *r, ngx_int_t status_code, ngx_str_t *text, const ngx_str_t *content_type, const ngx_str_t *explain_error_message)
 {
-    ngx_int_t                rc;
+    ngx_http_push_stream_module_ctx_t *ctx = ngx_http_get_module_ctx(r, ngx_http_push_stream_module);
+    ngx_int_t                          rc;
 
-    if ((r == NULL) || (text == NULL) || (content_type == NULL)) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    if (ngx_http_discard_request_body(r) != NGX_OK) {
+        rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto exit;
     }
 
-    r->headers_out.content_type_len = content_type->len;
-    r->headers_out.content_type = *content_type;
-    r->headers_out.content_length_n = text->len;
+    if ((text == NULL) || (text->len <= 0)) {
+        r->header_only = 1;
+        r->headers_out.content_length_n = 0;
+    } else {
+        r->headers_out.content_length_n = text->len;
+    }
+
+    if (content_type != NULL) {
+        r->headers_out.content_type_len = content_type->len;
+        r->headers_out.content_type = *content_type;
+    }
 
     r->headers_out.status = status_code;
+
+    if (explain_error_message != NULL) {
+        ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_EXPLAIN, explain_error_message);
+    }
 
     rc = ngx_http_send_header(r);
 
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
+        goto exit;
+    }
+
+    if (rc > NGX_HTTP_SPECIAL_RESPONSE) {
+        rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto exit;
     }
 
     rc = ngx_http_push_stream_send_response_text(r, text->data, text->len, 1);
 
-    if (r->main->count > 1) {
-        ngx_http_finalize_request(r, NGX_OK);
+exit:
+
+    if ((r->request_body != NULL) || ((ctx != NULL) && ctx->cleaned)) {
+        ngx_http_finalize_request(r, rc);
     }
 
     return rc;
 }
+
 
 static ngx_int_t
 ngx_http_push_stream_send_response_text(ngx_http_request_t *r, const u_char *text, uint len, ngx_flag_t last_buffer)
@@ -665,7 +661,6 @@ ngx_http_push_stream_send_response_padding(ngx_http_request_t *r, size_t len, ng
 }
 
 
-
 static void
 ngx_http_push_stream_run_cleanup_pool_handler(ngx_pool_t *p, ngx_pool_cleanup_pt handler)
 {
@@ -678,6 +673,7 @@ ngx_http_push_stream_run_cleanup_pool_handler(ngx_pool_t *p, ngx_pool_cleanup_pt
         }
     }
 }
+
 
 /**
  * Should never be called inside a locked block
@@ -702,7 +698,7 @@ ngx_http_push_stream_send_response_finalize(ngx_http_request_t *r)
         }
     }
 
-    ngx_http_finalize_request(r, (rc == NGX_ERROR) ? NGX_DONE : NGX_OK);
+    ngx_http_finalize_request(r, rc);
 }
 
 static void
@@ -731,8 +727,7 @@ ngx_http_push_stream_send_response_finalize_for_longpolling_by_timeout(ngx_http_
         ngx_http_push_stream_send_response_message(r, NULL, mcf->longpooling_timeout_msg, 1, 0);
         ngx_http_push_stream_send_response_finalize(r);
     } else {
-        ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_MODIFIED, NULL);
-        ngx_http_finalize_request(r, NGX_DONE);
+        ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_MODIFIED, NULL, NULL, NULL);
     }
 }
 
@@ -1248,6 +1243,7 @@ ngx_http_push_stream_add_request_context(ngx_http_request_t *r)
     ctx->ping_timer = NULL;
     ctx->subscriber = NULL;
     ctx->longpolling = 0;
+    ctx->cleaned = 0;
     ctx->padding = NULL;
     ctx->callback = NULL;
     ctx->requested_channels = NULL;
@@ -1288,6 +1284,8 @@ ngx_http_push_stream_cleanup_request_context(ngx_http_request_t *r)
             ngx_http_push_stream_worker_subscriber_cleanup_locked(ctx->subscriber);
             ctx->subscriber = NULL;
         }
+
+        ctx->cleaned = 1;
     }
     ngx_shmtx_unlock(&shpool->mutex);
 }

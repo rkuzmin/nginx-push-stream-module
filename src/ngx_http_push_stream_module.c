@@ -105,7 +105,7 @@ ngx_http_push_stream_send_response_all_channels_info_summarized(ngx_http_request
     ngx_sprintf(text->data, (char *) subtype->format_summarized->data, hostname->data, currenttime->data, data->channels, data->wildcard_channels, data->published_messages, data->stored_messages, data->messages_in_trash, data->channels_in_trash, data->subscribers, ngx_time() - data->startup, subscribers_by_workers);
     text->len = ngx_strlen(text->data);
 
-    return ngx_http_push_stream_send_response(r, text, subtype->content_type, NGX_HTTP_OK);
+    return ngx_http_push_stream_send_response(r, NGX_HTTP_OK, text, subtype->content_type, NULL);
 }
 
 
@@ -130,13 +130,15 @@ ngx_http_push_stream_send_response_channels_info(ngx_http_request_t *r, ngx_queu
         ngx_http_push_stream_channel_info_t *channel_info = (ngx_http_push_stream_channel_info_t *) cur;
         if ((chain = ngx_http_push_stream_get_buf(r)) == NULL) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: unable to allocate memory for response channels info");
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            goto exit;
         }
 
         format = (next != queue_channel_info) ? subtype->format_group_item : subtype->format_group_last_item;
         if ((text = ngx_http_push_stream_channel_info_formatted(r->pool, format, &channel_info->id, channel_info->published_messages, channel_info->stored_messages, channel_info->subscribers)) == NULL) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: unable to allocate memory to format channel info");
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+            goto exit;
         }
 
         chain->buf->last_buf = 0;
@@ -169,7 +171,8 @@ ngx_http_push_stream_send_response_channels_info(ngx_http_request_t *r, ngx_queu
     // format content header
     if ((header_response = ngx_http_push_stream_create_str(r->pool, head->len + hostname->len + currenttime->len + NGX_INT_T_LEN)) == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: unable to allocate memory for response channels info");
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto exit;
     }
 
     ngx_sprintf(header_response->data, (char *) head->data, hostname->data, currenttime->data, data->channels, data->wildcard_channels, ngx_time() - data->startup);
@@ -182,9 +185,14 @@ ngx_http_push_stream_send_response_channels_info(ngx_http_request_t *r, ngx_queu
     r->headers_out.content_length_n = content_len;
     r->headers_out.status = NGX_HTTP_OK;
 
+    if (ngx_http_discard_request_body(r) != NGX_OK) {
+        rc = NGX_HTTP_INTERNAL_SERVER_ERROR;
+        goto exit;
+    }
+
     rc = ngx_http_send_header(r);
     if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
+        goto exit;
     }
 
     // send content header
@@ -196,8 +204,10 @@ ngx_http_push_stream_send_response_channels_info(ngx_http_request_t *r, ngx_queu
     // send content footer
     rc = ngx_http_push_stream_send_response_text(r, tail->data, tail->len, 1);
 
-    if (r->main->count > 1) {
-        ngx_http_finalize_request(r, NGX_OK);
+ exit:
+
+    if (r->request_body != NULL) {
+        ngx_http_finalize_request(r, rc);
     }
 
     return rc;
@@ -275,7 +285,7 @@ ngx_http_push_stream_send_response_channels_info_detailed(ngx_http_request_t *r,
     ngx_shmtx_unlock(&shpool->mutex);
 
     if (qtd_channels == 0) {
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_FOUND, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_FOUND, NULL, NULL, NULL);
     }
 
     if (qtd_channels == 1) {
@@ -286,7 +296,7 @@ ngx_http_push_stream_send_response_channels_info_detailed(ngx_http_request_t *r,
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
         }
 
-        return ngx_http_push_stream_send_response(r, text, subtype->content_type, NGX_HTTP_OK);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_OK, text, subtype->content_type, NULL);
     }
 
     return ngx_http_push_stream_send_response_channels_info(r, &queue_channel_info);

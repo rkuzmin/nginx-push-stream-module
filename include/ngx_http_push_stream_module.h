@@ -183,6 +183,7 @@ typedef struct {
     ngx_event_t                        *ping_timer;
     ngx_http_push_stream_subscriber_t  *subscriber;
     ngx_flag_t                          longpolling;
+    ngx_flag_t                          cleaned;
     ngx_pool_t                         *temp_pool;
     ngx_chain_t                        *free;
     ngx_chain_t                        *busy;

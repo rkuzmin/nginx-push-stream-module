@@ -69,7 +69,7 @@ ngx_http_push_stream_subscriber_handler(ngx_http_request_t *r)
     }
 
     if (r->method & NGX_HTTP_OPTIONS) {
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_OK, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_OK, NULL, NULL, NULL);
     }
 
     ngx_http_push_stream_set_expires(r, NGX_HTTP_PUSH_STREAM_EXPIRES_EPOCH, 0);
@@ -77,7 +77,7 @@ ngx_http_push_stream_subscriber_handler(ngx_http_request_t *r)
     // only accept GET method
     if (!(r->method & NGX_HTTP_GET)) {
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ALLOW, &NGX_HTTP_PUSH_STREAM_ALLOW_GET);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_ALLOWED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_ALLOWED, NULL, NULL, NULL);
     }
 
     if ((ctx = ngx_http_push_stream_add_request_context(r)) == NULL) {
@@ -89,12 +89,12 @@ ngx_http_push_stream_subscriber_handler(ngx_http_request_t *r)
     channels_ids = ngx_http_push_stream_parse_channels_ids_from_path(r, ctx->temp_pool);
     if ((channels_ids == NULL) || ngx_queue_empty(&channels_ids->queue)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "push stream module: the push_stream_channels_path is required but is not set");
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
     }
 
     //validate channels: name, length and quantity. check if channel exists when authorized_channels_only is on. check if channel is full of subscribers
     if (ngx_http_push_stream_validate_channels(r, channels_ids, &status_code, &explain_error_message) == NGX_ERROR) {
-        return ngx_http_push_stream_send_only_header_response(r, status_code, explain_error_message);
+        return ngx_http_push_stream_send_response(r, status_code, NULL, NULL, explain_error_message);
     }
 
     // get control values
@@ -250,7 +250,7 @@ ngx_http_push_stream_subscriber_polling_handler(ngx_http_request_t *r, ngx_http_
 
     if (!has_message_to_send) {
         // polling subscriber requests get a 304 with their entity tags preserved if don't have new messages.
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_MODIFIED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_MODIFIED, NULL, NULL, NULL);
     }
 
     // polling with messages or long polling without messages to send

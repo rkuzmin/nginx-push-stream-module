@@ -55,44 +55,44 @@ ngx_http_push_stream_publisher_handler(ngx_http_request_t *r)
     }
 
     if (r->method & NGX_HTTP_OPTIONS) {
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_OK, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_OK, NULL, NULL, NULL);
     }
 
     // only accept GET, POST, PUT and DELETE methods if enable publisher administration
     if ((cf->location_type == NGX_HTTP_PUSH_STREAM_PUBLISHER_MODE_ADMIN) && !(r->method & (NGX_HTTP_GET|NGX_HTTP_POST|NGX_HTTP_PUT|NGX_HTTP_DELETE))) {
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ALLOW, &NGX_HTTP_PUSH_STREAM_ALLOW_GET_POST_PUT_DELETE_METHODS);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_ALLOWED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_ALLOWED, NULL, NULL, NULL);
     }
 
     // only accept GET, POST and PUT methods if NOT enable publisher administration
     if ((cf->location_type != NGX_HTTP_PUSH_STREAM_PUBLISHER_MODE_ADMIN) && !(r->method & (NGX_HTTP_GET|NGX_HTTP_POST|NGX_HTTP_PUT))) {
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ALLOW, &NGX_HTTP_PUSH_STREAM_ALLOW_GET_POST_PUT_METHODS);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_ALLOWED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_ALLOWED, NULL, NULL, NULL);
     }
 
     if ((ctx = ngx_http_push_stream_add_request_context(r)) == NULL) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: unable to create request context");
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_INTERNAL_SERVER_ERROR, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_INTERNAL_SERVER_ERROR, NULL, NULL, NULL);
     }
 
     //get channels ids
     channels_ids = ngx_http_push_stream_parse_channels_ids_from_path(r, r->pool);
     if ((channels_ids == NULL) || ngx_queue_empty(&channels_ids->queue)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "push stream module: the push_stream_channels_path is required but is not set");
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
     }
 
     cur = channels_ids;
     while ((cur = (ngx_http_push_stream_requested_channel_t *) ngx_queue_next(&cur->queue)) != channels_ids) {
         // check if channel id isn't equals to ALL or contain wildcard
         if ((ngx_memn2cmp(cur->id->data, NGX_HTTP_PUSH_STREAM_ALL_CHANNELS_INFO_ID.data, cur->id->len, NGX_HTTP_PUSH_STREAM_ALL_CHANNELS_INFO_ID.len) == 0) || (ngx_strchr(cur->id->data, '*') != NULL)) {
-            return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_FORBIDDEN, &NGX_HTTP_PUSH_STREAM_CHANNEL_ID_NOT_AUTHORIZED_MESSAGE);
+            return ngx_http_push_stream_send_response(r, NGX_HTTP_FORBIDDEN, NULL, NULL, &NGX_HTTP_PUSH_STREAM_CHANNEL_ID_NOT_AUTHORIZED_MESSAGE);
         }
 
         // could not have a large size
         if ((mcf->max_channel_id_length != NGX_CONF_UNSET_UINT) && (cur->id->len > mcf->max_channel_id_length)) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "push stream module: channel id is larger than allowed %d", cur->id->len);
-            return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_TOO_LARGE_CHANNEL_ID_MESSAGE);
+            return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_TOO_LARGE_CHANNEL_ID_MESSAGE);
         }
 
         if (r->method & (NGX_HTTP_POST|NGX_HTTP_PUT)) {
@@ -100,12 +100,12 @@ ngx_http_push_stream_publisher_handler(ngx_http_request_t *r)
             channel = ngx_http_push_stream_get_channel(cur->id, r->connection->log, cf, mcf);
             if (channel == NULL) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: unable to allocate memory for new channel");
-                return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_INTERNAL_SERVER_ERROR, NULL);
+                return ngx_http_push_stream_send_response(r, NGX_HTTP_INTERNAL_SERVER_ERROR, NULL, NULL, NULL);
             }
 
             if (channel == NGX_HTTP_PUSH_STREAM_NUMBER_OF_CHANNELS_EXCEEDED) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: number of channels were exceeded");
-                return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_FORBIDDEN, &NGX_HTTP_PUSH_STREAM_NUMBER_OF_CHANNELS_EXCEEDED_MESSAGE);
+                return ngx_http_push_stream_send_response(r, NGX_HTTP_FORBIDDEN, NULL, NULL, &NGX_HTTP_PUSH_STREAM_NUMBER_OF_CHANNELS_EXCEEDED_MESSAGE);
             }
         }
     }
@@ -136,6 +136,7 @@ ngx_http_push_stream_publisher_handle_after_read_body(ngx_http_request_t *r, ngx
     r->request_body_in_persistent_file = 1;
     r->request_body_in_clean_file = 0;
     r->request_body_file_log_level = 0;
+
 
     // parse the body message and return
     rc = ngx_http_read_client_request_body(r, post_handler);
@@ -185,6 +186,7 @@ ngx_http_push_stream_read_request_body_to_buffer(ngx_http_request_t *r)
             buf->start = buf->last;
         }
     }
+
     return buf;
 }
 
@@ -221,9 +223,9 @@ ngx_http_push_stream_publisher_delete_handler(ngx_http_request_t *r)
     }
 
     if (qtd_channels == 0) {
-        ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_FOUND, NULL);
+        ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_FOUND, NULL, NULL, NULL);
     } else {
-        ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_OK, &NGX_HTTP_PUSH_STREAM_CHANNEL_DELETED);
+        ngx_http_push_stream_send_response(r, NGX_HTTP_OK, NULL, NULL, &NGX_HTTP_PUSH_STREAM_CHANNEL_DELETED);
     }
 }
 
@@ -242,7 +244,7 @@ ngx_http_push_stream_publisher_body_handler(ngx_http_request_t *r)
     // check if body message wasn't empty
     if (r->headers_in.content_length_n <= 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: Post request was sent with no message");
-        ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_EMPTY_POST_REQUEST_MESSAGE);
+        ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_EMPTY_POST_REQUEST_MESSAGE);
         return;
     }
 
@@ -270,7 +272,7 @@ ngx_http_push_stream_publisher_body_handler(ngx_http_request_t *r)
     if (cf->channel_info_on_publish) {
         ngx_http_push_stream_send_response_channels_info_detailed(r, ctx->requested_channels);
     } else {
-        ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_OK, NULL);
+        ngx_http_push_stream_send_response(r, NGX_HTTP_OK, NULL, NULL, NULL);
     }
 }
 
@@ -287,7 +289,7 @@ ngx_http_push_stream_channels_statistics_handler(ngx_http_request_t *r)
     // only accept GET method
     if (!(r->method & NGX_HTTP_GET)) {
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ALLOW, &NGX_HTTP_PUSH_STREAM_ALLOW_GET);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_ALLOWED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_ALLOWED, NULL, NULL, NULL);
     }
 
     ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_TAG, &NGX_HTTP_PUSH_STREAM_TAG);
@@ -306,7 +308,7 @@ ngx_http_push_stream_channels_statistics_handler(ngx_http_request_t *r)
         // could not have a large size
         if ((mcf->max_channel_id_length != NGX_CONF_UNSET_UINT) && (cur->id->len > mcf->max_channel_id_length)) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "push stream module: channel id is larger than allowed %d", cur->id->len);
-            return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_TOO_LARGE_CHANNEL_ID_MESSAGE);
+            return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_TOO_LARGE_CHANNEL_ID_MESSAGE);
         }
 
         if ((pos = ngx_strchr(cur->id->data, '*')) != NULL) {

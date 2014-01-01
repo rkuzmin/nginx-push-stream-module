@@ -56,7 +56,7 @@ ngx_http_push_stream_websocket_handler(ngx_http_request_t *r)
     // only accept GET method
     if (!(r->method & NGX_HTTP_GET)) {
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_ALLOW, &NGX_HTTP_PUSH_STREAM_ALLOW_GET);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_NOT_ALLOWED, NULL);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_NOT_ALLOWED, NULL, NULL, NULL);
     }
 
     ngx_http_push_stream_set_expires(r, NGX_HTTP_PUSH_STREAM_EXPIRES_EPOCH, 0);
@@ -68,14 +68,14 @@ ngx_http_push_stream_websocket_handler(ngx_http_request_t *r)
 
     if ((upgrade_header == NULL) || (connection_header == NULL) || (sec_key_header == NULL) || (sec_version_header == NULL)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: %V", &NGX_HTTP_PUSH_STREAM_NO_MANDATORY_HEADERS_MESSAGE);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_NO_MANDATORY_HEADERS_MESSAGE);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_NO_MANDATORY_HEADERS_MESSAGE);
     }
 
     version = ngx_atoi(sec_version_header->data, sec_version_header->len);
     if ((version != NGX_HTTP_PUSH_STREAM_WEBSOCKET_VERSION_8) && (version != NGX_HTTP_PUSH_STREAM_WEBSOCKET_VERSION_13)) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "push stream module: version: %d %V", version, &NGX_HTTP_PUSH_STREAM_WRONG_WEBSOCKET_VERSION_MESSAGE);
         ngx_http_push_stream_add_response_header(r, &NGX_HTTP_PUSH_STREAM_HEADER_SEC_WEBSOCKET_VERSION, &NGX_HTTP_PUSH_STREAM_WEBSOCKET_SUPPORTED_VERSIONS);
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_WRONG_WEBSOCKET_VERSION_MESSAGE);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_WRONG_WEBSOCKET_VERSION_MESSAGE);
     }
 
     if ((ctx = ngx_http_push_stream_add_request_context(r)) == NULL) {
@@ -99,7 +99,7 @@ ngx_http_push_stream_websocket_handler(ngx_http_request_t *r)
     channels_ids = ngx_http_push_stream_parse_channels_ids_from_path(r, ctx->temp_pool);
     if ((channels_ids == NULL) || ngx_queue_empty(&channels_ids->queue)) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0, "push stream module: the push_stream_channels_path is required but is not set");
-        return ngx_http_push_stream_send_only_header_response(r, NGX_HTTP_BAD_REQUEST, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
+        return ngx_http_push_stream_send_response(r, NGX_HTTP_BAD_REQUEST, NULL, NULL, &NGX_HTTP_PUSH_STREAM_NO_CHANNEL_ID_MESSAGE);
     }
 
     //validate channels: name, length and quantity. check if channel exists when authorized_channels_only is on. check if channel is full of subscribers
@@ -275,7 +275,7 @@ closed:
     if (rc == NGX_ERROR) {
         ngx_log_error(NGX_LOG_INFO, c->log, ngx_socket_errno, "client closed prematurely connection");
 
-        ngx_http_finalize_request(r, NGX_OK);
+        ngx_http_finalize_request(r, rc);
     }
 }
 

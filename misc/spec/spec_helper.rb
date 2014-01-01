@@ -17,8 +17,13 @@ RSpec.configure do |config|
     core_dir = File.join(File.join(NginxTestHelper.nginx_tests_tmp_dir, "cores", config_id))
     FileUtils.mkdir_p core_dir
     Dir.chdir core_dir
+    logs = Dir[File.join(NginxTestHelper.nginx_tests_tmp_dir, "logs", "**")]
+    @error_log_pre = logs.map{|log| File.readlines(log)}.flatten
   end
   config.after(:each) do
+    logs = Dir[File.join(NginxTestHelper.nginx_tests_tmp_dir, "logs", "**")]
+    @error_log_pos = logs.map{|log| File.readlines(log)}.flatten
+    raise StandardError.new "\n\n#{config_id} let open sockets\n\n" if (@error_log_pos - @error_log_pre).join.include?("open socket")
     NginxTestHelper::Config.delete_config_and_log_files(config_id) if has_passed?
   end
   config.after(:suite) do
