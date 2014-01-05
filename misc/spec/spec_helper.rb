@@ -72,7 +72,7 @@ def publish_messages_until_fill_the_memory(channel, body, &block)
   socket = open_socket(nginx_host, nginx_port)
   while (true) do
     socket.print("POST /pub?id=#{channel.to_s % (i)} HTTP/1.1\r\nHost: localhost\r\nContent-Length: #{body.size}\r\n\r\n#{body}")
-    resp_headers, resp_body = read_response_on_socket(socket, {:wait_for => "}\r\n"})
+    resp_headers, resp_body = read_response_on_socket(socket, "}\r\n")
     break unless resp_headers.match(/200 OK/)
     i += 1
   end
